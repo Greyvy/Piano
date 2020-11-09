@@ -1,3 +1,11 @@
+--[[
+@TODO(Grey):
+]]--
+
+-- @NOTE(Grey): Debugging utility, it shows up in any web browser at the
+-- address: http://127.0.0.1:8000/
+lovebird = require "lovebird"
+
 local game = {
     w=0,
     h=0,
@@ -14,25 +22,8 @@ local player = {
     spd=1,
 }
 
-local keys = {
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-    {x=0, y=0, radius=16, color={255, 255, 255}, hit=false, sound=nil},
-}
-
-awful_sound = nil
-play_sound = nil
+local keys = {}
+local effect_names = {}
 
 function love.keyreleased(key)
     if key == 'escape' then
@@ -45,14 +36,13 @@ function love.keyreleased(key)
 end
 
 function sound_make(length, note)
-    local n = note -- 261.63
-    local number_of_seconds = length
-    local samples = 44100 * number_of_seconds
+    -- local c = 261.63
+    local samples = math.floor(44100 * length)
     local sound_data = love.sound.newSoundData(samples)
 
     for i=0,samples do
         local t = (i / samples)
-        local s = math.sin(t * math.pi * (number_of_seconds * n))
+        local s = math.sin(t * math.pi * (length * note))
         sound_data:setSample(i, s)
     end
 
@@ -62,29 +52,43 @@ end
 function love.load()
     game.w, game.h = love.graphics.getDimensions()
 
-    for i,k in pairs(keys) do
+    for i=1,8 do
+        local k = {
+            radius = 0,
+            x = 0,
+            y = 0,
+            color = {1, 1, 1},
+            sound = nil
+        }
+
         k.radius = love.math.random(8, 64)
         k.x = love.math.random(k.radius, game.w - k.radius)
         k.y = love.math.random(k.radius, game.h - k.radius)
-        --[[
-        local x_step = (game.w - (k.radius * 2)) / 8
-        k.radius = 16
-        k.x = k.radius + ((i % 8) * x_step)
-        k.y = k.radius + (math.floor(i / 8) * x_step)
-        ]]--
-        k.color[1] = love.math.random()
-        k.color[2] = love.math.random()
-        k.color[3] = love.math.random()
+        k.color = {
+            love.math.random(),
+            love.math.random(),
+            love.math.random()
+        }
 
         local note = 110 + ((i - 1) * 5.5)
         k.sound = sound_make(0.5, note)
+
+        keys[i] = k
     end
+
+    for i=1,#keys do
+        effect_names[i] = 'effect_'..i
+    end
+
 
     player.x = game.w / 2
     player.y = game.h / 2
 end
 
 function love.update(dt)
+    lovebird.update()
+    lovebird.print(love.audio.setMixWithSystem(true))
+
     if love.keyboard.isDown("a") then
         player.acc_x = -player.spd
     end
@@ -120,8 +124,7 @@ function love.update(dt)
         player.vel_y = 0
     end
 
-
-    for _,k in pairs(keys) do
+    for i,k in pairs(keys) do
         k.hit = false
 
         local min_dist = player.radius + k.radius
@@ -131,7 +134,11 @@ function love.update(dt)
         if dx * dx + dy * dy <= min_dist * min_dist then
             k.hit = true
 
-            love.audio.play(k.sound)
+            local random_num = love.math.random() * #effect_names
+            local effect_name_index = 1 + math.floor(random_num)
+
+            k.sound:setEffect(effect_names[effect_name_index])
+            k.sound:play()
         end
     end
 end
@@ -149,8 +156,8 @@ function love.draw()
     love.graphics.setColor({1, 0, 1});
     love.graphics.circle("fill", player.x, player.y, player.radius);
 
-
     --[[
+    -- @NOTE(Grey): Viz wave form
     love.graphics.setColor({1, 1, 1})
     love.graphics.push()
     love.graphics.translate(0, game.h / 2)
@@ -168,19 +175,5 @@ function love.draw()
         love.graphics.rectangle("fill", x, -h, w, h)
     end
     love.graphics.pop()
-    ]]--
-
-    --[[
-    love.graphics.setColor({1, 1, 1});
-    love.graphics.print(player.vel_x, 8, 8)
-    love.graphics.print(player.vel_y, 8, 20)
-
-    local y_off = 20 + 12
-    for i,k in pairs(keys) do
-        local y_block_off = (i - 1) * (12 * 3)
-        love.graphics.print(k.color[1], 8, y_off + y_block_off + 0)
-        love.graphics.print(k.color[2], 8, y_off + y_block_off + 12)
-        love.graphics.print(k.color[3], 8, y_off + y_block_off + 24)
-    end
     ]]--
 end
